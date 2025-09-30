@@ -1,29 +1,77 @@
+use common::Message;
+use std::env;
+use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use std::env;
+use rand::Rng;
+
+// The run_engine function now takes a port string to identify itself.
+async fn run_engine(port: String) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut stream = TcpStream::connect("122.160.30.138:8000").await?;
+    println!("[Engine {}] Connected to driver.", port);
+
+    loop {
+        // 1. Request a task.
+        println!("[Engine {}] Requesting a task.", port);
+        let request = Message::RequestTask;
+        let serialized_request = bincode::serialize(&request)?;
+        let len_bytes = (serialized_request.len() as u32).to_be_bytes();
+        stream.write_all(&len_bytes).await?;
+        stream.write_all(&serialized_request).await?;
+
+        // 2. Wait for a response.
+        let mut len_bytes = [0u8; 4];
+        if stream.read_exact(&mut len_bytes).await.is_err() {
+            println!("[Engine {}] Driver disconnected.", port);
+            break;
+        }
+        let len = u32::from_be_bytes(len_bytes) as usize;
+        let mut buffer = vec![0u8; len];
+        stream.read_exact(&mut buffer).await?;
+
+        let msg: Message = bincode::deserialize(&buffer)?;
+
+        match msg {
+            Message::AssignTask(task) => {
+                println!("[Engine {}] Received task: {}", port, task);
+                // Simulate doing work.
+                let sleep_duration = Duration::from_secs(rand::thread_rng().gen_range(1..=5));
+                tokio::time::sleep(sleep_duration).await;
+                println!("[Engine {}] Finished task: {}", port, task);
+            }
+            Message::NoMoreTasks => {
+                println!("[Engine {}] No more tasks. Shutting down.", port);
+                break; // Exit the loop.
+            }
+            _ => {
+                eprintln!("[Engine {}] Received an unexpected message.", port);
+            }
+        }
+    }
+    Ok(())
+}
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // The driver port should be the first argument, its own port the second.
-    let args: Vec<String> = env::args().collect();
-    let driver_port = &args[1];
-    let engine_port = &args[2];
-    let driver_addr = format!("127.0.0.1:{}", driver_port);
+async fn main() {
+    // Collect all command-line arguments, skipping the program name.
+    let ports: Vec<String> = env::args().skip(1).collect();
 
-    println!("[Engine-{}] Connecting to driver at {}", engine_port, driver_addr);
-    let mut stream = TcpStream::connect(driver_addr).await?;
-    println!("[Engine-{}] Connected to driver.", engine_port);
+    if ports.is_empty() {
+        eprintln!("Usage: cargo run --bin engine <port1> <port2> ...");
+        return;
+    }
 
-    // Send a message to the driver.
-    let message = format!("Hello from Engine listening on port {}", engine_port);
-    stream.write_all(message.as_bytes()).await?;
-    println!("[Engine-{}] Sent message to driver.", engine_port);
+    let mut handles = vec![];
 
-    // Wait for the driver's response.
-    let mut buf = vec![0; 1024];
-    let n = stream.read(&mut buf).await?;
-    let received_msg = std::str::from_utf8(&buf[..n])?;
-    println!("[Engine-{}] Received response from driver: '{}'", engine_port, received_msg);
+    println!("Starting engine instances for ports: {:?}", ports);
 
-    Ok(())
+    // Spawn an engine task for each port argument.
+    for port in ports {
+        handles.push(tokio::spawn(run_engine(port)));
+    }
+
+    // Wait for all engine tasks to complete.
+    for handle in handles {
+        handle.await.unwrap().unwrap();
+    }
 }

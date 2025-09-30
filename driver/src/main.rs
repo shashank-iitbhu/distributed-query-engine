@@ -1,32 +1,67 @@
+use common::Message;
+use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener;
-use std::env;
+use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::Mutex;
+
+// This function handles the conversation with a single engine.
+async fn handle_engine(mut stream: TcpStream, task_queue: Arc<Mutex<Vec<String>>>) {
+    let addr = stream.peer_addr().expect("Failed to get peer address");
+    println!("[Driver] Engine connected: {}", addr);
+
+    loop {
+        // Wait for the engine to request a task.
+        let mut len_bytes = [0u8; 4];
+        if stream.read_exact(&mut len_bytes).await.is_err() {
+            println!("[Driver] Engine {} disconnected.", addr);
+            break;
+        }
+        let len = u32::from_be_bytes(len_bytes) as usize;
+        let mut buffer = vec![0u8; len];
+        stream.read_exact(&mut buffer).await.expect("Failed to read message");
+
+        let msg: Message = bincode::deserialize(&buffer).expect("Failed to deserialize message");
+
+        if let Message::RequestTask = msg {
+            // Lock the queue to safely access it.
+            let mut queue = task_queue.lock().await;
+            let response = if let Some(task) = queue.pop() {
+                println!("[Driver] Assigning task '{}' to {}", task, addr);
+                Message::AssignTask(task)
+            } else {
+                println!("[Driver] No more tasks. Telling {} to shut down.", addr);
+                Message::NoMoreTasks
+            };
+            
+            let serialized_response = bincode::serialize(&response).unwrap();
+            let len_bytes = (serialized_response.len() as u32).to_be_bytes();
+            stream.write_all(&len_bytes).await.unwrap();
+            stream.write_all(&serialized_response).await.unwrap();
+        }
+        // In a real implementation, you would handle TaskResult messages here.
+    }
+}
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // We'll get the port numbers from the command line arguments.
-    // For this simple test, we'll just listen on the first one.
-    let args: Vec<String> = env::args().collect();
-    let listen_port = &args[1];
-    let listen_addr = format!("127.0.0.1:{}", listen_port);
+async fn main() {
+    // A simple list of tasks (filenames).
+    let tasks = vec![
+        "file1.csv".to_string(), "file2.csv".to_string(), "file3.csv".to_string(),
+        "file4.csv".to_string(), "file5.csv".to_string(), "file6.csv".to_string(),
+        "file7.csv".to_string(), "file8.csv".to_string(),
+    ];
 
-    println!("[Driver] Listening for connections on {}", listen_addr);
-    let listener = TcpListener::bind(listen_addr).await?;
+    // Create a thread-safe, shareable task queue.
+    let task_queue = Arc::new(Mutex::new(tasks));
 
-    // Wait for an engine to connect.
-    let (mut socket, addr) = listener.accept().await?;
-    println!("[Driver] Accepted connection from: {}", addr);
+    let listener = TcpListener::bind("127.0.0.1:8000").await.unwrap();
+    println!("[Driver] Server listening on port 8000...");
 
-    // Create a buffer to read the engine's message.
-    let mut buf = vec![0; 1024];
-    let n = socket.read(&mut buf).await?;
-    let received_msg = std::str::from_utf8(&buf[..n])?;
-    println!("[Driver] Received message from engine: '{}'", received_msg);
-
-    // Send a response back to the engine.
-    let response = "Hello from Driver!";
-    socket.write_all(response.as_bytes()).await?;
-    println!("[Driver] Sent response to engine.");
-
-    Ok(())
+    // Accept incoming connections in a loop.
+    while let Ok((stream, _)) = listener.accept().await {
+        // For each connection, spawn a new asynchronous task.
+        // Clone the Arc to give the new task its own reference to the queue.
+        let task_queue_clone = Arc::clone(&task_queue);
+        tokio::spawn(handle_engine(stream, task_queue_clone));
+    }
 }
