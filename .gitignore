@@ -9,3 +9,5 @@ Thumbs.db
 .idea/
 .vscode/
 logs.txt
+output.txt
+output_assertion.txt
