@@ -5,4 +5,4 @@ echo "Starting engine on port $PORT..."
 
 ./target/release/engine $PORT &
 
-echo "Engine placeholder started for port $PORT." &
+echo "Engine started for port $PORT." &
