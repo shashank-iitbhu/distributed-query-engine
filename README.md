@@ -5,11 +5,13 @@
 - **Python 3**
 
 ## Setup & Usage
-1. **Build the Rust binaries:**
+1. **Add the dataset and assertion file:**
+   - Place your `sample_dataset` folder (with CSV files) and `output_assertion.txt` in the project root.
+2. **Build the Rust binaries:**
    ```sh
    cargo build --release
    ```
-2. **Run the test automation:**
+3. **Run the test automation:**
    ```sh
    python3 test_runner.py
    ```
