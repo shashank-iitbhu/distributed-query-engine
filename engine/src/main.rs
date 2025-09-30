@@ -7,7 +7,8 @@ use rand::Rng;
 
 // The run_engine function now takes a port string to identify itself.
 async fn run_engine(port: String) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let mut stream = TcpStream::connect("122.160.30.138:8000").await?;
+    // CORRECTED LINE: Connect to the local machine (localhost).
+    let mut stream = TcpStream::connect("127.0.0.1:8000").await?;
     println!("[Engine {}] Connected to driver.", port);
 
     loop {
