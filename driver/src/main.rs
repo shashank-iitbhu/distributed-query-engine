@@ -31,6 +31,7 @@ impl PartialOrd for HeapItem {
     }
 }
 
+// K-way merge function to merge sorted chunks from different engines
 fn k_way_merge(chunks: Vec<Vec<StudentRanking>>) -> Vec<StudentRanking> {
     let k = chunks.len();
     let mut heap = BinaryHeap::new();
@@ -73,6 +74,7 @@ fn write_output_file(sorted_records: Vec<StudentRanking>) -> std::io::Result<()>
     Ok(())
 }
 
+// Handles communication with a single engine worker over TCP
 async fn handle_engine(
     mut stream: TcpStream,
     task_queue: Arc<Mutex<Vec<String>>>,
@@ -125,6 +127,7 @@ async fn main() {
     let args: Vec<String> = env::args().collect();
     let engine_ports = &args[1..];
     println!("[Driver] Acknowledging engine ports to be used: {:?}", engine_ports);
+
     let mut tasks = Vec::new();
     let dir_path = "sample_dataset/student_rankings";
     let paths = fs::read_dir(dir_path).expect("Failed to read sample_dataset directory");
@@ -171,6 +174,7 @@ async fn main() {
         }
     }
     
+    // Perform the final k-way merge
     let sorted_chunks = results.lock().await.clone();    
     let final_result = k_way_merge(sorted_chunks);
     println!("[Driver] Final merge complete. Total sorted records: {}", final_result.len());

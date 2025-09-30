@@ -82,6 +82,7 @@ async fn run_engine(port: String) -> Result<(), Box<dyn std::error::Error + Send
     Ok(())
 }
 
+/// In-place merge sort implementation for StudentRanking
 fn merge_sort(slice: &mut [common::StudentRanking]) {
     let len = slice.len();
     if len > 1 {
@@ -92,6 +93,7 @@ fn merge_sort(slice: &mut [common::StudentRanking]) {
     }
 }
 
+// Merges two sorted halves of the slice
 fn merge(slice: &mut [common::StudentRanking], mid: usize) {
     let left_half = slice[..mid].to_vec();
     let right_half = slice[mid..].to_vec();
