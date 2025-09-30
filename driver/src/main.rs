@@ -1,11 +1,11 @@
 use common::{Message, StudentRanking};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
+use std::env;
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
 use std::sync::Arc;
 use std::time::Duration;
-use std::env;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
@@ -49,7 +49,7 @@ fn k_way_merge(chunks: Vec<Vec<StudentRanking>>) -> Vec<StudentRanking> {
 
     while let Some(smallest_item) = heap.pop() {
         final_sorted_list.push(smallest_item.record);
-        
+
         let next_element_index = smallest_item.element_index + 1;
         // If the chunk has more elements, push the next one onto the heap.
         if next_element_index < chunks[smallest_item.chunk_index].len() {
@@ -60,7 +60,7 @@ fn k_way_merge(chunks: Vec<Vec<StudentRanking>>) -> Vec<StudentRanking> {
             });
         }
     }
-    
+
     final_sorted_list
 }
 
@@ -89,10 +89,15 @@ async fn handle_engine(
             break; // Engine disconnected
         }
         let len = u32::from_be_bytes(len_bytes) as usize;
-        if len == 0 { break; }
+        if len == 0 {
+            break;
+        }
 
         let mut buffer = vec![0u8; len];
-        stream.read_exact(&mut buffer).await.expect("Failed to read message");
+        stream
+            .read_exact(&mut buffer)
+            .await
+            .expect("Failed to read message");
         let msg: Message = bincode::deserialize(&buffer).expect("Failed to deserialize message");
 
         match msg {
@@ -126,7 +131,10 @@ async fn handle_engine(
 async fn main() {
     let args: Vec<String> = env::args().collect();
     let engine_ports = &args[1..];
-    println!("[Driver] Acknowledging engine ports to be used: {:?}", engine_ports);
+    println!(
+        "[Driver] Acknowledging engine ports to be used: {:?}",
+        engine_ports
+    );
 
     let mut tasks = Vec::new();
     let dir_path = "sample_dataset/student_rankings";
@@ -152,7 +160,7 @@ async fn main() {
 
     let listener = TcpListener::bind("127.0.0.1:8000").await.unwrap();
     println!("[Driver] Server listening on port 8000...");
-    
+
     // Spawn the connection listener as a background task.
     let task_queue_clone = Arc::clone(&task_queue);
     let results_clone = Arc::clone(&results);
@@ -169,15 +177,21 @@ async fn main() {
         tokio::time::sleep(Duration::from_millis(200)).await;
         let num_results = results.lock().await.len();
         if num_results == total_tasks {
-            println!("\n[Driver] All {} sorted chunks received. Starting final merge.", num_results);
+            println!(
+                "\n[Driver] All {} sorted chunks received. Starting final merge.",
+                num_results
+            );
             break;
         }
     }
-    
+
     // Perform the final k-way merge
-    let sorted_chunks = results.lock().await.clone();    
+    let sorted_chunks = results.lock().await.clone();
     let final_result = k_way_merge(sorted_chunks);
-    println!("[Driver] Final merge complete. Total sorted records: {}", final_result.len());
+    println!(
+        "[Driver] Final merge complete. Total sorted records: {}",
+        final_result.len()
+    );
 
     write_output_file(final_result).expect("Failed to write output file");
     println!("[Driver] Successfully wrote to output.txt. Shutting down.");

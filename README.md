@@ -22,9 +22,14 @@ This project demonstrates a distributed sorting system using a dynamic worker qu
 
 This approach allows for flexible scaling: you can run as many engine workers as you like, and tasks are distributed dynamically based on worker availability.
 
+## Design & Architecture (Why these choices?)
+Rust is fast like C++, but safer and easier to write concurrent code.
+The dynamic work queue keeps all engines busy and balances the load automatically.
+You can add more engines any time—no code changes needed.
+Merge sort in engines: always O(n log n), no surprises, even for weird data.
+K-way merge in the driver: combines all sorted chunks in the fastest way possible.
+
 ## Result
 After running the test runner, you should see a summary in the terminal showing the success of each step:
 
-![Test Runner Output](Screenshot 2025-09-30 at 8.45.42 PM.png)
-
-
+![Test Runner Output](result.png)

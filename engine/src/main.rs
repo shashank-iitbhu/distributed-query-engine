@@ -1,8 +1,8 @@
 use common::Message;
 use std::env;
+use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use std::time::Duration;
 
 async fn run_engine(port: String) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let driver_addr = "127.0.0.1:8000";
@@ -24,9 +24,11 @@ async fn run_engine(port: String) -> Result<(), Box<dyn std::error::Error + Send
     let mut stream = match stream {
         Some(s) => s,
         None => {
-            return Err(
-                format!("[Engine {}] Failed to connect to driver after multiple retries.", port).into(),
+            return Err(format!(
+                "[Engine {}] Failed to connect to driver after multiple retries.",
+                port
             )
+            .into());
         }
     };
 
@@ -58,9 +60,17 @@ async fn run_engine(port: String) -> Result<(), Box<dyn std::error::Error + Send
                 let file_path = format!("sample_dataset/student_rankings/{}", task);
                 println!("[Engine {}] Received task: {}. Reading file...", port, task);
 
-                let mut rdr = csv::ReaderBuilder::new().has_headers(false).from_path(&file_path)?;
-                let mut records: Vec<common::StudentRanking> = rdr.deserialize().collect::<Result<_, _>>()?;
-                println!("[Engine {}] Read {} records from {}. Sorting...", port, records.len(), task);
+                let mut rdr = csv::ReaderBuilder::new()
+                    .has_headers(false)
+                    .from_path(&file_path)?;
+                let mut records: Vec<common::StudentRanking> =
+                    rdr.deserialize().collect::<Result<_, _>>()?;
+                println!(
+                    "[Engine {}] Read {} records from {}. Sorting...",
+                    port,
+                    records.len(),
+                    task
+                );
 
                 merge_sort(&mut records);
                 println!("[Engine {}] Finished sorting {}.", port, task);
@@ -72,7 +82,10 @@ async fn run_engine(port: String) -> Result<(), Box<dyn std::error::Error + Send
                 stream.write_all(&len_bytes).await?;
                 stream.write_all(&serialized_result).await?;
 
-                println!("[Engine {}] Sent sorted result for {} back to driver.", port, task);
+                println!(
+                    "[Engine {}] Sent sorted result for {} back to driver.",
+                    port, task
+                );
             }
             _ => {
                 eprintln!("[Engine {}] Received an unexpected message.", port);

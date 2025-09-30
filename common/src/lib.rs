@@ -21,7 +21,8 @@ pub enum Message {
 
 impl Ord for StudentRanking {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.batch_year.cmp(&other.batch_year)
+        self.batch_year
+            .cmp(&other.batch_year)
             .then_with(|| self.university_ranking.cmp(&other.university_ranking))
             .then_with(|| self.batch_ranking.cmp(&other.batch_ranking))
     }
